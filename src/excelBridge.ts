@@ -6,6 +6,10 @@ interface PendingRequest {
     resolve: (value: any) => void;
     reject: (err: Error) => void;
     timer: NodeJS.Timeout;
+    /** Disposable for any cancellation listener attached to this request. */
+    cancelSub?: vscode.Disposable;
+    /** Wall-clock when the request was sent, used to decide whether to kill the worker. */
+    sentAt: number;
 }
 
 /**
@@ -62,6 +66,7 @@ export class ExcelBridge implements vscode.Disposable {
             this.output.appendLine(`[bridge] spawn error: ${msg}`);
             for (const p of this.pending.values()) {
                 clearTimeout(p.timer);
+                p.cancelSub?.dispose();
                 p.reject(new Error(msg));
             }
             this.pending.clear();
@@ -72,6 +77,7 @@ export class ExcelBridge implements vscode.Disposable {
             this.output.appendLine(`[bridge] exited code=${code} signal=${signal}`);
             for (const p of this.pending.values()) {
                 clearTimeout(p.timer);
+                p.cancelSub?.dispose();
                 p.reject(new Error(`Excel bridge exited (code=${code}). See "Axcelerator" output for details.`));
             }
             this.pending.clear();
@@ -86,6 +92,7 @@ export class ExcelBridge implements vscode.Disposable {
                 resolve: () => { clearTimeout(timer); resolve(); },
                 reject: (e) => { clearTimeout(timer); reject(e); },
                 timer,
+                sentAt: Date.now(),
             });
         });
         return this.readyPromise;
@@ -116,6 +123,7 @@ export class ExcelBridge implements vscode.Disposable {
             }
             this.pending.delete(id);
             clearTimeout(pend.timer);
+            pend.cancelSub?.dispose();
             if (msg.ok) {
                 pend.resolve(msg.result);
             } else {
@@ -126,7 +134,24 @@ export class ExcelBridge implements vscode.Disposable {
         }
     }
 
-    public async call(method: string, params: Record<string, any> = {}): Promise<any> {
+    /**
+     * Send a JSON-RPC request to the Python worker.
+     *
+     * If `token` is provided and fires while the request is in flight:
+     *  - the pending entry is removed and rejected with a CancellationError;
+     *  - if it is the only in-flight request and has been running long enough
+     *    that the worker is almost certainly inside a synchronous xlwings /
+     *    AppleScript / COM call, the Python process is killed (SIGTERM). It
+     *    will be respawned on the next call. This is the only reliable way
+     *    to interrupt a stuck Excel automation call \u2014 xlwings calls are not
+     *    cooperatively cancellable.
+     *  - if other requests are also in flight we only reject the cancelled one
+     *    and log a warning, to avoid taking down unrelated work.
+     */
+    public async call(method: string, params: Record<string, any> = {}, token?: vscode.CancellationToken): Promise<any> {
+        if (token?.isCancellationRequested) {
+            throw new vscode.CancellationError();
+        }
         await this.ensureStarted();
         if (!this.proc) {
             throw new Error('Excel bridge is not running.');
@@ -135,14 +160,39 @@ export class ExcelBridge implements vscode.Disposable {
         const payload = JSON.stringify({ id, method, params }) + '\n';
         return new Promise((resolve, reject) => {
             const timer = setTimeout(() => {
+                const p = this.pending.get(id);
                 this.pending.delete(id);
+                p?.cancelSub?.dispose();
                 reject(new Error(`Excel operation timed out after ${this.timeoutMs()}ms: ${method}`));
             }, this.timeoutMs());
-            this.pending.set(id, { resolve, reject, timer });
+            const entry: PendingRequest = { resolve, reject, timer, sentAt: Date.now() };
+            if (token) {
+                entry.cancelSub = token.onCancellationRequested(() => {
+                    const pend = this.pending.get(id);
+                    if (!pend) {
+                        return;
+                    }
+                    this.pending.delete(id);
+                    clearTimeout(pend.timer);
+                    pend.cancelSub?.dispose();
+                    const inFlightMs = Date.now() - pend.sentAt;
+                    const otherInFlight = this.pending.size > 0;
+                    if (!otherInFlight && inFlightMs > 2000 && this.proc && !this.proc.killed) {
+                        this.output.appendLine(`[bridge] cancellation: killing worker (request "${method}" was in-flight for ${inFlightMs}ms)`);
+                        this.proc.kill();
+                    } else if (otherInFlight) {
+                        this.output.appendLine(`[bridge] cancellation: "${method}" cancelled but ${this.pending.size} other request(s) in flight; not killing worker`);
+                    }
+                    pend.reject(new vscode.CancellationError());
+                });
+            }
+            this.pending.set(id, entry);
             this.proc!.stdin.write(payload, (err) => {
                 if (err) {
+                    const p = this.pending.get(id);
                     this.pending.delete(id);
                     clearTimeout(timer);
+                    p?.cancelSub?.dispose();
                     reject(err);
                 }
             });

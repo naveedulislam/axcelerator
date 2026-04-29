@@ -18,6 +18,18 @@ interface ToolDef {
     label: string;
     /** Build a one-line invocation summary for the user. */
     summary?: (input: any) => string;
+    /**
+     * If true, requires `vscode.workspace.isTrusted`. Used for tools that can
+     * execute code (VBA / Python) or fetch arbitrary data (Power Query M can
+     * call Web.Contents / File.Contents / Sql.Database).
+     */
+    requiresTrust?: boolean;
+    /**
+     * If set, the tool short-circuits with this error message on the listed
+     * platforms instead of being dispatched to the Python bridge. Used to make
+     * the schema honest about Mac-unsupported features.
+     */
+    unsupportedOn?: { platforms: NodeJS.Platform[]; message: string };
 }
 
 const TOOLS: ToolDef[] = [
@@ -38,11 +50,13 @@ const TOOLS: ToolDef[] = [
     { toolName: 'excel_format_range', method: 'format_range', label: 'Format range', summary: (i) => `Format ${i?.sheet}!${i?.range}` },
     { toolName: 'excel_create_table', method: 'create_table', label: 'Create Excel table', summary: (i) => `Create table "${i?.name}" on ${i?.sheet}!${i?.range}` },
     { toolName: 'excel_create_chart', method: 'create_chart', label: 'Create chart', summary: (i) => `Create ${i?.chartType ?? 'chart'} on ${i?.sheet}` },
-    { toolName: 'excel_create_pivot_table', method: 'create_pivot_table', label: 'Create PivotTable', summary: (i) => `PivotTable "${i?.name}" from ${i?.sourceTable}` },
-    { toolName: 'excel_add_power_query', method: 'add_power_query', label: 'Add Power Query', summary: (i) => `Add Power Query "${i?.queryName}"` },
-    { toolName: 'excel_refresh', method: 'refresh', label: 'Refresh queries', summary: (i) => i?.queryName ? `Refresh ${i.queryName}` : 'Refresh all' },
-    { toolName: 'excel_run_vba', method: 'run_vba', label: 'Run VBA macro', gatedBy: 'axcelerator.allowVba', summary: (i) => `Run VBA: ${i?.macro}` },
-    { toolName: 'excel_run_python', method: 'run_python', label: 'Run xlwings Python', gatedBy: 'axcelerator.allowPython' },
+    { toolName: 'excel_create_pivot_table', method: 'create_pivot_table', label: 'Create PivotTable', summary: (i) => `PivotTable "${i?.name}" from ${i?.sourceTable}`,
+        unsupportedOn: { platforms: ['darwin'], message: 'PivotTable creation is Windows-only (requires the Excel COM object model). On macOS, build a summary table with SUMIFS / GROUPBY / dynamic arrays, or use excel_run_python.' } },
+    { toolName: 'excel_add_power_query', method: 'add_power_query', label: 'Add Power Query', summary: (i) => `Add Power Query "${i?.queryName}"`, requiresTrust: true },
+    { toolName: 'excel_refresh', method: 'refresh', label: 'Refresh queries', summary: (i) => i?.queryName ? `Refresh ${i.queryName}` : 'Refresh all', requiresTrust: true },
+    { toolName: 'excel_run_vba', method: 'run_vba', label: 'Run VBA macro', gatedBy: 'axcelerator.allowVba', requiresTrust: true, summary: (i) => `Run VBA: ${i?.macro}`,
+        unsupportedOn: { platforms: ['darwin', 'linux'], message: 'VBA execution requires the Excel COM object model and is Windows-only.' } },
+    { toolName: 'excel_run_python', method: 'run_python', label: 'Run xlwings Python', gatedBy: 'axcelerator.allowPython', requiresTrust: true },
 ];
 
 class ExcelTool implements vscode.LanguageModelTool<any> {
@@ -72,8 +86,27 @@ class ExcelTool implements vscode.LanguageModelTool<any> {
 
     async invoke(
         options: vscode.LanguageModelToolInvocationOptions<any>,
-        _token: vscode.CancellationToken,
+        token: vscode.CancellationToken,
     ): Promise<vscode.LanguageModelToolResult> {
+        // Workspace Trust gate (C1): block code-execution and arbitrary-fetch
+        // tools in untrusted workspaces, regardless of settings flags.
+        if (this.def.requiresTrust && !vscode.workspace.isTrusted) {
+            return new vscode.LanguageModelToolResult([
+                new vscode.LanguageModelTextPart(
+                    `Refused: tool "${this.def.toolName}" requires a trusted workspace ` +
+                    `because it can execute code or fetch arbitrary data. ` +
+                    `Use "Workspaces: Manage Workspace Trust" to trust this workspace, ` +
+                    `or run the command from a trusted folder.`,
+                ),
+            ]);
+        }
+        // Platform gate (C2/H2): hard-fail unsupported tools on this OS rather
+        // than dispatching to a Python fallback that would silently misbehave.
+        if (this.def.unsupportedOn && this.def.unsupportedOn.platforms.includes(process.platform)) {
+            return new vscode.LanguageModelToolResult([
+                new vscode.LanguageModelTextPart(`Unsupported on ${process.platform}: ${this.def.unsupportedOn.message}`),
+            ]);
+        }
         if (this.def.gatedBy) {
             const [section, key] = this.def.gatedBy.split('.');
             const enabled = vscode.workspace.getConfiguration(section).get<boolean>(key);
@@ -87,7 +120,7 @@ class ExcelTool implements vscode.LanguageModelTool<any> {
             }
         }
         try {
-            const result = await this.bridge.call(this.def.method, options.input ?? {});
+            const result = await this.bridge.call(this.def.method, options.input ?? {}, token);
             const text = JSON.stringify(result, null, 2);
             return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(text)]);
         } catch (err: any) {

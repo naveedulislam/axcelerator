@@ -12,6 +12,12 @@
     "onStartupFinished"
   ],
   "main": "./out/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In an untrusted workspace, tools that execute code or fetch data are blocked: excel_run_vba, excel_run_python, excel_add_power_query, and excel_refresh."
+    }
+  },
   "contributes": {
     "configuration": {
       "title": "Axcelerator",
@@ -272,7 +278,7 @@
       {
         "name": "excel_create_pivot_table",
         "displayName": "Create PivotTable",
-        "modelDescription": "Creates a PivotTable from an Excel Table or range. On Windows uses COM for full support; on Mac uses xlwings AppleScript path.",
+        "modelDescription": "Creates a PivotTable from an Excel Table or range. WINDOWS ONLY: full PivotTable creation requires the Excel COM object model. On macOS this tool returns an unsupported error \u2014 build a summary table with formulas (SUMIFS / GROUPBY / dynamic arrays) or use excel_run_python instead.",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
@@ -303,7 +309,7 @@
       {
         "name": "excel_add_power_query",
         "displayName": "Add Power Query (M)",
-        "modelDescription": "Adds (or replaces) a Power Query connection defined by an M-expression and optionally loads it as a Query Table on a sheet. Supports SharePoint, web, file, and database sources via standard M connectors. On Windows uses COM for full automation; on Mac uses direct xlsx XML manipulation (save-close-patch-reopen).",
+        "modelDescription": "Adds (or replaces) a Power Query connection defined by an M-expression. WINDOWS: full COM automation, including loading the query as a Query Table on a sheet (loadToSheet/loadToCell). macOS: the workbook is saved, closed, the .xlsx package is patched with the DataMashup blob, and reopened; the query becomes visible in the Power Query editor but is NOT auto-loaded to a sheet (loadToSheet and loadToCell are ignored on Mac \u2014 the user must click Load in the PQ editor). Requires a trusted workspace (M can fetch from web/file/SharePoint).",
         "tags": ["excel", "power-query"],
         "inputSchema": {
           "type": "object",
@@ -322,7 +328,7 @@
       {
         "name": "excel_refresh",
         "displayName": "Refresh Connections / Queries",
-        "modelDescription": "Refreshes all data connections and Power Queries in a workbook (or a specific query if `queryName` is given).",
+        "modelDescription": "Refreshes all data connections and Power Queries in a workbook (or a specific query if `queryName` is given). WINDOWS: per-connection refresh with error propagation. macOS: best-effort; queryName is ignored, the call asks Excel to refresh all and errors raised inside the Excel UI are not surfaced. Requires a trusted workspace.",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
