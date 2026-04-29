@@ -24,6 +24,8 @@
         "axcelerator.requestTimeoutMs": {
           "type": "number",
           "default": 120000,
+          "minimum": 1000,
+          "maximum": 600000,
           "description": "Maximum time (ms) to wait for an Excel operation to complete."
         },
         "axcelerator.allowVba": {
@@ -311,7 +313,8 @@
             "mFormula": { "type": "string", "description": "Full Power Query M expression, including 'let ... in ...'." },
             "loadToSheet": { "type": "string", "description": "If provided, loads the query as a table to this sheet." },
             "loadToCell": { "type": "string", "default": "A1" },
-            "replace": { "type": "boolean", "default": true }
+            "replace": { "type": "boolean", "default": true },
+            "noReopen": { "type": "boolean", "default": false, "description": "Mac only: after patching the .xlsx package on disk, do not reopen the workbook in Excel. Use this when subsequent xlwings saves would otherwise strip the injected DataMashup." }
           },
           "required": ["workbook", "queryName", "mFormula"]
         }
@@ -372,8 +375,13 @@
     "@types/vscode": "^1.95.0",
     "typescript": "^5.4.0"
   },
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "local"
-  }
+    "url": "https://github.com/naveedulislam/axcelerator.git"
+  },
+  "bugs": {
+    "url": "https://github.com/naveedulislam/axcelerator/issues"
+  },
+  "homepage": "https://github.com/naveedulislam/axcelerator#readme"
 }

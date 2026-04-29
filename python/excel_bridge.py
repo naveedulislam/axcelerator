@@ -58,6 +58,13 @@ IS_WINDOWS = platform.system() == "Windows"
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _norm_path(path: str) -> str:
+    """Normalize a filesystem path: expand ~ and $VARS, then make absolute."""
+    if not path:
+        return path
+    return os.path.abspath(os.path.expandvars(os.path.expanduser(path)))
+
+
 def _get_app(visible: bool = True) -> "xw.App":
     """Return an active Excel App, launching one if needed."""
     if xw.apps.count == 0:
@@ -75,7 +82,7 @@ def _find_workbook(identifier: str) -> "xw.Book":
     """Find an open workbook by name, basename, or full path."""
     if not identifier:
         raise ValueError("workbook identifier is required")
-    norm = os.path.normcase(os.path.abspath(identifier)) if os.sep in identifier or "/" in identifier else None
+    norm = os.path.normcase(_norm_path(identifier)) if os.sep in identifier or "/" in identifier else None
     for app in xw.apps:
         for book in app.books:
             if book.name == identifier:
@@ -157,7 +164,7 @@ def m_open_workbook(p: dict) -> dict:
         book = app.books.add()
         return {"name": book.name, "fullname": book.fullname, "created": True}
 
-    abs_path = os.path.abspath(path)
+    abs_path = _norm_path(path)
     if os.path.exists(abs_path):
         book = app.books.open(abs_path)
         return {"name": book.name, "fullname": book.fullname, "created": False}
@@ -178,7 +185,7 @@ def m_save_workbook(p: dict) -> dict:
     for attempt in range(3):
         try:
             if path:
-                book.save(os.path.abspath(path))
+                book.save(_norm_path(path))
             else:
                 book.save()
             return {"name": book.name, "fullname": book.fullname}

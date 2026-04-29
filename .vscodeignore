@@ -4,3 +4,12 @@ src/**
 **/.gitignore
 **/*.ts
 node_modules/@types/**
+**/__pycache__/**
+**/*.pyc
+test_*.py
+*_REPORT.md
+AUDIT_*.md
+*.xlsm
+*.xlsx
+*.vsix
+default.profraw

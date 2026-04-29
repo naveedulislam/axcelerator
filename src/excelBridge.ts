@@ -56,6 +56,18 @@ export class ExcelBridge implements vscode.Disposable {
         proc.stderr.setEncoding('utf-8');
         proc.stdout.on('data', (chunk: string) => this.onStdout(chunk));
         proc.stderr.on('data', (chunk: string) => this.output.append(`[py-stderr] ${chunk}`));
+        proc.on('error', (err) => {
+            const msg = `Failed to start Python bridge using "${py}": ${err.message}. ` +
+                `Set "axcelerator.pythonPath" in VS Code settings to a Python interpreter that has xlwings installed.`;
+            this.output.appendLine(`[bridge] spawn error: ${msg}`);
+            for (const p of this.pending.values()) {
+                clearTimeout(p.timer);
+                p.reject(new Error(msg));
+            }
+            this.pending.clear();
+            this.proc = undefined;
+            this.readyPromise = undefined;
+        });
         proc.on('exit', (code, signal) => {
             this.output.appendLine(`[bridge] exited code=${code} signal=${signal}`);
             for (const p of this.pending.values()) {
