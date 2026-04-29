@@ -86,11 +86,22 @@ export class ExcelBridge implements vscode.Disposable {
         });
 
         this.readyPromise = new Promise<void>((resolve, reject) => {
-            const timer = setTimeout(() => reject(new Error('Excel bridge did not signal ready in time.')), 15000);
+            const fail = (msg: string) => {
+                // Tear the bridge down so the next call respawns instead of
+                // re-awaiting a permanently-rejected promise.
+                this.pending.delete(0);
+                if (this.proc && !this.proc.killed) {
+                    try { this.proc.kill(); } catch { /* ignore */ }
+                }
+                this.proc = undefined;
+                this.readyPromise = undefined;
+                reject(new Error(msg));
+            };
+            const timer = setTimeout(() => fail('Excel bridge did not signal ready in time.'), 15000);
             // The python side emits an initial {"id":null,"ok":true,"result":{"ready":true...}}.
             this.pending.set(0, {
                 resolve: () => { clearTimeout(timer); resolve(); },
-                reject: (e) => { clearTimeout(timer); reject(e); },
+                reject: (e) => { clearTimeout(timer); fail(e.message); },
                 timer,
                 sentAt: Date.now(),
             });
@@ -163,6 +174,15 @@ export class ExcelBridge implements vscode.Disposable {
                 const p = this.pending.get(id);
                 this.pending.delete(id);
                 p?.cancelSub?.dispose();
+                // The worker is almost certainly stuck inside a synchronous
+                // xlwings/AppleScript/COM call. Treat the bridge as tainted:
+                // kill the process so a delayed response can't land on a
+                // future request, and so Excel mutations stop. The bridge
+                // auto-respawns on the next call.
+                if (this.proc && !this.proc.killed) {
+                    this.output.appendLine(`[bridge] timeout: killing worker (request "${method}" exceeded ${this.timeoutMs()}ms)`);
+                    try { this.proc.kill(); } catch { /* ignore */ }
+                }
                 reject(new Error(`Excel operation timed out after ${this.timeoutMs()}ms: ${method}`));
             }, this.timeoutMs());
             const entry: PendingRequest = { resolve, reject, timer, sentAt: Date.now() };

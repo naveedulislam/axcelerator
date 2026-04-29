@@ -3,6 +3,7 @@ src/**
 **/tsconfig.json
 **/.gitignore
 **/*.ts
+**/*.map
 node_modules/@types/**
 **/__pycache__/**
 **/*.pyc

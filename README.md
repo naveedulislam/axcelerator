@@ -5,7 +5,7 @@ A VS Code extension that gives **GitHub Copilot (agent / chat tools)** the abili
 It uses [**xlwings**](https://www.xlwings.org/) as the engine:
 
 - On **Windows**, xlwings talks to Excel through **COM** (`pywin32`), unlocking the full object model: `ListObjects` (Tables), `PivotTables`, `Queries` (Power Query / M), VBA macros, etc.
-- On **macOS**, xlwings talks to Excel through **AppleScript**. Workbooks, sheets, ranges, formulas, tables, charts, Power Query, and VBA macros all work. (See [Microsoft's Mac VBA docs](https://support.microsoft.com/en-us/office/use-the-developer-tab-to-create-or-delete-a-macro-in-excel-for-mac-5bd3dfb9-39d7-496a-a812-1b5e8e81d96a). Some Windows-only constructs such as UserForms and ActiveX controls do not run on Mac.)
+- On **macOS**, xlwings talks to Excel through **AppleScript**. Workbooks, sheets, ranges, formulas, tables, charts, and Power Query (via xlsx XML patching) work. PivotTables degrade to a static summarised table (no live PivotCache). VBA execution is **not supported on macOS** \u2014 use `excel_run_python` instead.
 
 ## What Copilot can do once installed
 
@@ -25,7 +25,7 @@ The extension registers 19 `vscode.lm` tools that Copilot can call autonomously 
 | `excel_create_pivot_table`                                             | Build a PivotTable from a Table (Windows: full COM; Mac: summarised table)       |
 | `excel_add_power_query`                                                | Add or replace an M-expression query, optionally load to a sheet (Mac + Windows) |
 | `excel_refresh`                                                        | Refresh a single query or all connections                                        |
-| `excel_run_vba`                                                        | Run a named VBA macro (gated by setting; Windows + Mac)                          |
+| `excel_run_vba`                                                        | Run a named VBA macro (Windows only; gated by setting + workspace trust)         |
 | `excel_run_python`                                                     | Run an arbitrary xlwings snippet against the live session (gated by setting)     |
 
 This covers the use-cases:
@@ -95,7 +95,7 @@ Open **Settings** (`Cmd+,`) and search **axcelerator**:
 | ------------------------------ | --------- | ------------------------------------------------------------------------------------------------- |
 | `axcelerator.pythonPath`       | `python3` | Full path to the Python interpreter that has `xlwings` installed. Use `which python3` to find it. |
 | `axcelerator.requestTimeoutMs` | `120000`  | Per-request timeout for Excel operations (ms)                                                     |
-| `axcelerator.allowVba`         | `false`   | Lets Copilot call `excel_run_vba` (Windows + Mac, off by default for safety)                      |
+| `axcelerator.allowVba`         | `false`   | Lets Copilot call `excel_run_vba` (Windows only, off by default for safety)                       |
 | `axcelerator.allowPython`      | `false`   | Lets Copilot call `excel_run_python` (arbitrary xlwings code, off by default)                     |
 
 After configuring, run **Axcelerator: Check Excel / xlwings Environment** from the Command Palette (`Cmd+Shift+P`) to confirm the bridge is working.
@@ -131,9 +131,9 @@ After injection the query is visible in **Data > Get Data > Launch Power Query E
 
 Limitations on Mac:
 
-- `excel_refresh` is a no-op while the workbook is closed (the bridge surfaces a graceful message).
-- `excel_run_vba` is supported on Mac as well as Windows. The workbook must be `.xlsm` with the macro defined, and macro execution must be permitted (Excel > Preferences > Security > Macro Security). UserForms / ActiveX controls remain Windows-only.
-- Pivot tables created via the tool fall back to a static summarised table (no live PivotCache).
+- `excel_refresh` is a no-op while the workbook is closed (the bridge surfaces a graceful message). On Mac the `queryName` parameter is ignored \u2014 only refresh-all is supported, and errors raised inside the Excel UI are not surfaced.
+- `excel_run_vba` is **not supported on macOS** (Windows-only). The tool returns an unsupported error on Mac. Use `excel_run_python` for scripted automation on Mac.
+- Pivot tables created via the tool fall back to a **static summarised table** (no live PivotCache, does not refresh when source changes).
 
 ## Verification & testing
 
@@ -152,7 +152,7 @@ When using these tools autonomously:
 
 - **Always call `excel_check_environment` first** to discover OS and Excel capabilities before planning multi-step work.
 - **Workbook lifecycle**: prefer `excel_open_workbook` -> mutate -> `excel_save_workbook`. Use `excel_close_workbook` only when finished or before `excel_add_power_query` on Mac (the tool handles closing internally).
-- **Power Query on Mac**: pass `loadToSheet`/`loadToCell` to make the query visible as a table on a sheet. The tool reopens the workbook automatically; do **not** call `excel_open_workbook` again immediately after.
+- **Power Query on Mac**: `loadToSheet` and `loadToCell` are **ignored** \u2014 the query is injected into the workbook and visible in **Data > Get Data > Launch Power Query Editor**, but the user must click **Load** in the PQ editor to materialise it as a sheet table. The tool reopens the workbook automatically; do **not** call `excel_open_workbook` again immediately after.
 - **Refreshing**: on Mac, queries refresh when the user clicks **Refresh** in the Power Query Editor or **Enable Content** on first open. `excel_refresh` is best-effort.
 - **VBA / Python**: gated by user settings. If a call returns a "disabled" error, ask the user to enable the corresponding setting rather than retrying.
 - **Idempotency**: `excel_add_power_query` with `replace=true` (default) overwrites an existing query of the same name without duplicating it.

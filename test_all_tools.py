@@ -434,20 +434,18 @@ run_test(bridge, "run_python", "Introspect Dashboard via Python",
          {"workbook": WB_NAME, "code": py_code})
 
 # ===========================================================================
-# PHASE 12 — run_vba (Mac: macro call goes through AppleScript)
+# PHASE 12 — run_vba (Windows-only; Mac returns unsupported)
 # ===========================================================================
 print("\n── Phase 12: run_vba ──")
 
-# On Mac with a plain .xlsx (no VBA project), AppleScript's `run VB macro`
-# returns no result rather than raising. On Windows, calling a non-existent
-# macro raises. We accept either outcome as long as the call returns
-# (i.e. the bridge no longer hard-codes "Mac is unsupported").
+# Policy: VBA is Windows-only. On Mac the bridge raises an unsupported error
+# before touching Excel; on Windows, calling a non-existent macro raises.
+# Either way, the call should NOT succeed for a missing macro.
 import platform as _pf
-_expect_ok = _pf.system() == "Darwin"
-run_test(bridge, "run_vba", "run_vba reachable on this OS (Mac=ok, Win=error for missing macro)",
+run_test(bridge, "run_vba", "run_vba: Windows-only policy (Mac=unsupported, Win=missing-macro error)",
          {"workbook": WB_NAME, "macro": "NonExistentMacro"},
-         expect_ok=_expect_ok,
-         note="Mac: AppleScript silently no-ops missing macros. Win: missing macro raises.")
+         expect_ok=False,
+         note="Mac: bridge returns 'Windows-only' unsupported error. Win: missing macro raises.")
 
 # ===========================================================================
 # PHASE 13 — Final save THEN Power Query injection

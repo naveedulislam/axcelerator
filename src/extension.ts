@@ -50,8 +50,7 @@ const TOOLS: ToolDef[] = [
     { toolName: 'excel_format_range', method: 'format_range', label: 'Format range', summary: (i) => `Format ${i?.sheet}!${i?.range}` },
     { toolName: 'excel_create_table', method: 'create_table', label: 'Create Excel table', summary: (i) => `Create table "${i?.name}" on ${i?.sheet}!${i?.range}` },
     { toolName: 'excel_create_chart', method: 'create_chart', label: 'Create chart', summary: (i) => `Create ${i?.chartType ?? 'chart'} on ${i?.sheet}` },
-    { toolName: 'excel_create_pivot_table', method: 'create_pivot_table', label: 'Create PivotTable', summary: (i) => `PivotTable "${i?.name}" from ${i?.sourceTable}`,
-        unsupportedOn: { platforms: ['darwin'], message: 'PivotTable creation is Windows-only (requires the Excel COM object model). On macOS, build a summary table with SUMIFS / GROUPBY / dynamic arrays, or use excel_run_python.' } },
+    { toolName: 'excel_create_pivot_table', method: 'create_pivot_table', label: 'Create PivotTable', summary: (i) => `PivotTable "${i?.name}" from ${i?.sourceTable}` },
     { toolName: 'excel_add_power_query', method: 'add_power_query', label: 'Add Power Query', summary: (i) => `Add Power Query "${i?.queryName}"`, requiresTrust: true },
     { toolName: 'excel_refresh', method: 'refresh', label: 'Refresh queries', summary: (i) => i?.queryName ? `Refresh ${i.queryName}` : 'Refresh all', requiresTrust: true },
     { toolName: 'excel_run_vba', method: 'run_vba', label: 'Run VBA macro', gatedBy: 'axcelerator.allowVba', requiresTrust: true, summary: (i) => `Run VBA: ${i?.macro}`,
@@ -149,11 +148,20 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('axcelerator.checkEnvironment', async () => {
             try {
                 const info = await bridge.call('check_environment');
-                const msg = `OS: ${info.os} • xlwings ${info.xlwingsVersion} • Excel running: ${info.excelRunning}` +
-                    (info.excelVersion ? ` • Excel ${info.excelVersion}` : '') +
-                    `\nCOM/VBA/Power Query: ${info.comAvailable ? 'available' : 'unavailable (non-Windows)'}`;
-                vscode.window.showInformationMessage(`Axcelerator: ${msg}`);
+                const cap = (label: string, ok: boolean, detail?: string) =>
+                    `${label}: ${ok ? 'yes' : 'no'}${detail ? ` (${detail})` : ''}`;
+                const lines = [
+                    `OS: ${info.os} \u2022 xlwings ${info.xlwingsVersion} \u2022 Excel running: ${info.excelRunning}` +
+                        (info.excelVersion ? ` \u2022 Excel ${info.excelVersion}` : ''),
+                    cap('COM', !!info.comAvailable, 'Windows only'),
+                    cap('VBA', !!info.vbaSupported, 'Windows only'),
+                    cap('Power Query', !!info.powerQuerySupported, info.powerQueryMode),
+                    cap('PivotTable', !!info.pivotTableSupported, info.pivotTableMode),
+                ];
+                const msg = lines.join('\n');
+                vscode.window.showInformationMessage(`Axcelerator: ${lines[0]}`, { modal: false });
                 output.appendLine(msg);
+                output.show(true);
             } catch (err: any) {
                 vscode.window.showErrorMessage(`Axcelerator check failed: ${err.message}`);
             }

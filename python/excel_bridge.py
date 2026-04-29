@@ -120,12 +120,18 @@ def m_check_environment(_: dict) -> dict:
         "excelRunning": xw.apps.count > 0,
         # COM is Windows-only; unlocks Queries API, PivotCaches, VBA macros.
         "comAvailable": IS_WINDOWS,
-        # VBA is genuinely Windows-only in desktop Excel.
+        # VBA is Windows-only in this extension. Mac VBA was previously a
+        # best-effort path but proved unreliable across Excel/AppleScript
+        # versions and is now refused at the TS gate as well.
         "vbaSupported": IS_WINDOWS,
-        # Power Query works on Excel for Mac too; on Mac we patch the xlsx XML.
+        # Power Query works on both. Mac path patches the .xlsx XML; the
+        # query is visible in the PQ editor but is NOT auto-loaded to a sheet.
         "powerQuerySupported": True,
-        # Full PivotTable COM automation only on Windows; basic layout via openpyxl on Mac.
+        "powerQueryMode": "com" if IS_WINDOWS else "xml-patch",
+        # PivotTable is supported on both, but only Windows builds a real
+        # PivotCache; Mac writes a static summarised table at the destination.
         "pivotTableSupported": True,
+        "pivotTableMode": "native" if IS_WINDOWS else "summary-fallback",
         "pivotTableFullCom": IS_WINDOWS,
     }
     if xw.apps.count > 0:
@@ -971,22 +977,16 @@ def m_refresh(p: dict) -> dict:
 
 
 def m_run_vba(p: dict) -> dict:
+    if not IS_WINDOWS:
+        raise RuntimeError(
+            "excel_run_vba is Windows-only. Mac VBA via AppleScript is "
+            "unreliable across Excel versions and is intentionally not "
+            "supported by this extension. Use excel_run_python instead."
+        )
     book = _find_workbook(p["workbook"])
     args = p.get("args") or []
-    try:
-        macro = book.macro(p["macro"])
-        res = macro(*args)
-    except Exception as e:
-        if not IS_WINDOWS:
-            raise RuntimeError(
-                f"VBA macro execution failed on macOS: {e}. "
-                "Excel for Mac supports VBA but requires: "
-                "(1) the workbook is .xlsm with the macro defined, "
-                "(2) Excel > Preferences > Security > 'Enable all macros' OR the file is trusted, "
-                "(3) the macro is callable via AppleScript's `run VB macro`. "
-                "Some Windows-only constructs (UserForms, ActiveX) will not work on Mac."
-            )
-        raise
+    macro = book.macro(p["macro"])
+    res = macro(*args)
     return {"result": res}
 
 

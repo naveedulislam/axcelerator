@@ -278,7 +278,7 @@
       {
         "name": "excel_create_pivot_table",
         "displayName": "Create PivotTable",
-        "modelDescription": "Creates a PivotTable from an Excel Table or range. WINDOWS ONLY: full PivotTable creation requires the Excel COM object model. On macOS this tool returns an unsupported error \u2014 build a summary table with formulas (SUMIFS / GROUPBY / dynamic arrays) or use excel_run_python instead.",
+        "modelDescription": "Creates a PivotTable from an Excel Table or range. WINDOWS: builds a real PivotTable via the COM PivotCache (interactive, refreshable). macOS: writes a STATIC summarised table at the destination cell using Python aggregation \u2014 it is NOT a live PivotTable, has no PivotCache, and does not refresh when the source changes. Use check_environment.pivotTableMode to see which path will run.",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
@@ -317,8 +317,8 @@
             "workbook": { "type": "string" },
             "queryName": { "type": "string" },
             "mFormula": { "type": "string", "description": "Full Power Query M expression, including 'let ... in ...'." },
-            "loadToSheet": { "type": "string", "description": "If provided, loads the query as a table to this sheet." },
-            "loadToCell": { "type": "string", "default": "A1" },
+            "loadToSheet": { "type": "string", "description": "Windows only: loads the query as a Query Table to this sheet. IGNORED on macOS \u2014 the query is visible in the PQ editor but the user must click Load." },
+            "loadToCell": { "type": "string", "default": "A1", "description": "Windows only: target cell for loadToSheet. Ignored on macOS." },
             "replace": { "type": "boolean", "default": true },
             "noReopen": { "type": "boolean", "default": false, "description": "Mac only: after patching the .xlsx package on disk, do not reopen the workbook in Excel. Use this when subsequent xlwings saves would otherwise strip the injected DataMashup." }
           },
@@ -342,7 +342,7 @@
       {
         "name": "excel_run_vba",
         "displayName": "Run VBA Macro",
-        "modelDescription": "Executes a VBA macro by name in the given workbook, optionally with arguments. (Windows / COM only.) Disabled unless `axcelerator.allowVba` is enabled.",
+        "modelDescription": "Executes a VBA macro by name in the given workbook, optionally with arguments. WINDOWS-ONLY (requires the Excel COM object model). On macOS the call returns an unsupported error \u2014 use excel_run_python instead. Disabled unless `axcelerator.allowVba` is enabled and the workspace is trusted.",
         "tags": ["excel", "windows", "advanced"],
         "inputSchema": {
           "type": "object",
@@ -374,7 +374,9 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "lint": "echo 'no linter configured'"
+    "lint": "echo 'no linter configured'",
+    "test:contract": "node tests/contract.js",
+    "test": "npm run test:contract"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
