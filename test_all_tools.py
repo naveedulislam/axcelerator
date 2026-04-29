@@ -16,6 +16,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import textwrap
 from datetime import datetime
@@ -24,12 +25,15 @@ from typing import Any
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-BRIDGE      = os.path.join(os.path.dirname(__file__), "python", "excel_bridge.py")
+HERE        = os.path.dirname(os.path.abspath(__file__))
+BRIDGE      = os.path.join(HERE, "python", "excel_bridge.py")
 PYTHON      = sys.executable
-ORIGINAL    = os.path.expanduser("~/Developer/World Bank Mobile Phone Statistics.xlsx")
-WB_PATH     = os.path.expanduser("~/Developer/World Bank Mobile Phone Statistics - Axcelerator Test.xlsx")
+# Clean fixture lives in the repo so anyone can run this test from a fresh clone.
+ORIGINAL    = os.path.join(HERE, "tests", "fixtures", "world_bank_mobile.xlsx")
+# Output is written to a tmp dir to avoid polluting the user's home/workspace.
+WB_PATH     = os.path.join(tempfile.gettempdir(), "axcelerator_test_world_bank_mobile.xlsx")
 WB_NAME     = os.path.basename(WB_PATH)
-REPORT_PATH = os.path.join(os.path.dirname(__file__), "TOOL_TEST_REPORT.md")
+REPORT_PATH = os.path.join(HERE, "TOOL_TEST_REPORT.md")
 
 # ---------------------------------------------------------------------------
 # Bridge wrapper

@@ -7,6 +7,7 @@ node_modules/@types/**
 **/__pycache__/**
 **/*.pyc
 test_*.py
+tests/**
 *_REPORT.md
 AUDIT_*.md
 *.xlsm
