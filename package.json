@@ -1,0 +1,379 @@
+{
+  "name": "axcelerator",
+  "displayName": "Axcelerator",
+  "description": "Language Model Tools that let GitHub Copilot drive Microsoft Excel via xlwings (and COM on Windows): workbooks, sheets, ranges, formulas, tables, charts, Power Query, PivotTables, VBA, and Python.",
+  "version": "0.1.0",
+  "publisher": "naveedulislam",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": ["AI", "Other"],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Axcelerator",
+      "properties": {
+        "axcelerator.pythonPath": {
+          "type": "string",
+          "default": "python3",
+          "description": "Path to the Python interpreter that has xlwings installed."
+        },
+        "axcelerator.requestTimeoutMs": {
+          "type": "number",
+          "default": 120000,
+          "description": "Maximum time (ms) to wait for an Excel operation to complete."
+        },
+        "axcelerator.allowVba": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow Copilot to run arbitrary VBA macros (Windows only). Off by default for safety."
+        },
+        "axcelerator.allowPython": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow Copilot to run arbitrary Python (xlwings) snippets. Off by default for safety."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "axcelerator.checkEnvironment",
+        "title": "Axcelerator: Check Excel / xlwings Environment"
+      },
+      {
+        "command": "axcelerator.restartBridge",
+        "title": "Axcelerator: Restart Python Bridge"
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "excel_check_environment",
+        "displayName": "Check Excel Environment",
+        "modelDescription": "Reports whether Microsoft Excel and xlwings are available, the OS, Excel version, and which features are available (COM on Windows enables VBA macros, PivotTable automation, and direct Power Query API; on Mac Power Query is available via xlsx XML patching and PivotTables via AppleScript). Call this first when unsure.",
+        "userDescription": "Check Excel/xlwings environment",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelEnv",
+        "tags": ["excel"],
+        "inputSchema": { "type": "object", "properties": {} }
+      },
+      {
+        "name": "excel_list_workbooks",
+        "displayName": "List Open Workbooks",
+        "modelDescription": "Lists all workbooks currently open in Excel along with their full paths and active sheet.",
+        "tags": ["excel"],
+        "inputSchema": { "type": "object", "properties": {} }
+      },
+      {
+        "name": "excel_open_workbook",
+        "displayName": "Open or Create Workbook",
+        "modelDescription": "Opens an existing workbook from disk, or creates a new empty workbook if `path` is omitted or the file does not exist (when `create=true`). Returns the workbook name.",
+        "tags": ["excel"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": { "type": "string", "description": "Absolute path to the .xlsx/.xlsm file. Omit to create an unsaved new workbook." },
+            "create": { "type": "boolean", "description": "If true and the file does not exist, create it.", "default": false },
+            "visible": { "type": "boolean", "description": "Whether Excel should be visible.", "default": true }
+          }
+        }
+      },
+      {
+        "name": "excel_save_workbook",
+        "displayName": "Save Workbook",
+        "modelDescription": "Saves a workbook. If `path` is provided, performs a Save As to that path.",
+        "tags": ["excel"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "workbook": { "type": "string", "description": "Workbook name (e.g. 'Book1.xlsx') or full path. Required." },
+            "path": { "type": "string", "description": "Optional Save As path." }
+          },
+          "required": ["workbook"]
+        }
+      },
+      {
+        "name": "excel_close_workbook",
+        "displayName": "Close Workbook",
+        "modelDescription": "Closes a workbook. Set `save=true` to save first.",
+        "tags": ["excel"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "workbook": { "type": "string" },
+            "save": { "type": "boolean", "default": false }
+          },
+          "required": ["workbook"]
+        }
+      },
+      {
+        "name": "excel_list_sheets",
+        "displayName": "List Sheets",
+        "modelDescription": "Lists worksheets in a workbook with their used range dimensions.",
+        "tags": ["excel"],
+        "inputSchema": {
+          "type": "object",
+          "properties": { "workbook": { "type": "string" } },
+          "required": ["workbook"]
+        }
+      },
+      {
+        "name": "excel_add_sheet",
+        "displayName": "Add Worksheet",
+        "modelDescription": "Adds a new worksheet to a workbook.",
+        "tags": ["excel"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "workbook": { "type": "string" },
+            "name": { "type": "string" },
+            "after": { "type": "string", "description": "Name of the sheet to insert after. Optional." }
+          },
+          "required": ["workbook", "name"]
+        }
+      },
+      {
+        "name": "excel_delete_sheet",
+        "displayName": "Delete Worksheet",
+        "modelDescription": "Deletes a worksheet from a workbook.",
+        "tags": ["excel"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "workbook": { "type": "string" },
+            "sheet": { "type": "string" }
+          },
+          "required": ["workbook", "sheet"]
+        }
+      },
+      {
+        "name": "excel_read_range",
+        "displayName": "Read Range",
+        "modelDescription": "Reads values from a range. Returns a 2D array. Use `expand='table'` to auto-detect the populated region starting at `range`.",
+        "tags": ["excel"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "workbook": { "type": "string" },
+            "sheet": { "type": "string" },
+            "range": { "type": "string", "description": "A1 reference, e.g. 'A1' or 'A1:D10'." },
+            "expand": { "type": "string", "enum": ["none", "table", "down", "right"], "default": "none" },
+            "formulas": { "type": "boolean", "description": "Return formulas instead of values.", "default": false }
+          },
+          "required": ["workbook", "sheet", "range"]
+        }
+      },
+      {
+        "name": "excel_write_range",
+        "displayName": "Write Range",
+        "modelDescription": "Writes values into a range. `values` is a 2D array (rows of columns). The range anchor cell is `range`; size is inferred from `values`.",
+        "tags": ["excel"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "workbook": { "type": "string" },
+            "sheet": { "type": "string" },
+            "range": { "type": "string", "description": "Anchor cell, e.g. 'A1'." },
+            "values": {
+              "type": "array",
+              "items": { "type": "array", "items": {} },
+              "description": "2D array of cell values."
+            }
+          },
+          "required": ["workbook", "sheet", "range", "values"]
+        }
+      },
+      {
+        "name": "excel_set_formula",
+        "displayName": "Set Formula(s)",
+        "modelDescription": "Sets one or more Excel formulas. If `formula` is a string, it is applied to the anchor cell. If `formulas` is provided (2D array), it fills a region. Use `array=true` for dynamic-array formulas.",
+        "tags": ["excel"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "workbook": { "type": "string" },
+            "sheet": { "type": "string" },
+            "range": { "type": "string" },
+            "formula": { "type": "string" },
+            "formulas": { "type": "array", "items": { "type": "array", "items": { "type": "string" } } },
+            "array": { "type": "boolean", "default": false }
+          },
+          "required": ["workbook", "sheet", "range"]
+        }
+      },
+      {
+        "name": "excel_format_range",
+        "displayName": "Format Range",
+        "modelDescription": "Applies basic formatting to a range: number format, bold, italic, font color, background color, column width, autofit.",
+        "tags": ["excel"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "workbook": { "type": "string" },
+            "sheet": { "type": "string" },
+            "range": { "type": "string" },
+            "numberFormat": { "type": "string" },
+            "bold": { "type": "boolean" },
+            "italic": { "type": "boolean" },
+            "fontColor": { "type": "string", "description": "Hex like '#RRGGBB'." },
+            "backgroundColor": { "type": "string", "description": "Hex like '#RRGGBB'." },
+            "autofit": { "type": "boolean" },
+            "columnWidth": { "type": "number" }
+          },
+          "required": ["workbook", "sheet", "range"]
+        }
+      },
+      {
+        "name": "excel_create_table",
+        "displayName": "Create Excel Table (ListObject)",
+        "modelDescription": "Converts a range into an Excel Table (ListObject). Required for many dashboard/PivotTable scenarios.",
+        "tags": ["excel"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "workbook": { "type": "string" },
+            "sheet": { "type": "string" },
+            "range": { "type": "string" },
+            "name": { "type": "string", "description": "Table name." },
+            "tableStyle": { "type": "string", "default": "TableStyleMedium2" },
+            "hasHeaders": { "type": "boolean", "default": true }
+          },
+          "required": ["workbook", "sheet", "range", "name"]
+        }
+      },
+      {
+        "name": "excel_create_chart",
+        "displayName": "Create Chart",
+        "modelDescription": "Creates a chart on a sheet from a source range.",
+        "tags": ["excel"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "workbook": { "type": "string" },
+            "sheet": { "type": "string" },
+            "sourceRange": { "type": "string" },
+            "chartType": {
+              "type": "string",
+              "enum": ["column_clustered", "bar_clustered", "line", "line_markers", "pie", "area", "scatter", "doughnut"],
+              "default": "column_clustered"
+            },
+            "title": { "type": "string" },
+            "anchorCell": { "type": "string", "description": "Top-left anchor cell for the chart, e.g. 'F2'." },
+            "width": { "type": "number", "default": 480 },
+            "height": { "type": "number", "default": 300 }
+          },
+          "required": ["workbook", "sheet", "sourceRange"]
+        }
+      },
+      {
+        "name": "excel_create_pivot_table",
+        "displayName": "Create PivotTable",
+        "modelDescription": "Creates a PivotTable from an Excel Table or range. On Windows uses COM for full support; on Mac uses xlwings AppleScript path.",
+        "tags": ["excel"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "workbook": { "type": "string" },
+            "sourceTable": { "type": "string", "description": "Name of an existing Excel Table to use as source." },
+            "destinationSheet": { "type": "string" },
+            "destinationCell": { "type": "string", "default": "A1" },
+            "name": { "type": "string" },
+            "rows": { "type": "array", "items": { "type": "string" } },
+            "columns": { "type": "array", "items": { "type": "string" } },
+            "values": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "field": { "type": "string" },
+                  "function": { "type": "string", "enum": ["sum", "count", "average", "max", "min"], "default": "sum" }
+                },
+                "required": ["field"]
+              }
+            },
+            "filters": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["workbook", "sourceTable", "destinationSheet", "name"]
+        }
+      },
+      {
+        "name": "excel_add_power_query",
+        "displayName": "Add Power Query (M)",
+        "modelDescription": "Adds (or replaces) a Power Query connection defined by an M-expression and optionally loads it as a Query Table on a sheet. Supports SharePoint, web, file, and database sources via standard M connectors. On Windows uses COM for full automation; on Mac uses direct xlsx XML manipulation (save-close-patch-reopen).",
+        "tags": ["excel", "power-query"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "workbook": { "type": "string" },
+            "queryName": { "type": "string" },
+            "mFormula": { "type": "string", "description": "Full Power Query M expression, including 'let ... in ...'." },
+            "loadToSheet": { "type": "string", "description": "If provided, loads the query as a table to this sheet." },
+            "loadToCell": { "type": "string", "default": "A1" },
+            "replace": { "type": "boolean", "default": true }
+          },
+          "required": ["workbook", "queryName", "mFormula"]
+        }
+      },
+      {
+        "name": "excel_refresh",
+        "displayName": "Refresh Connections / Queries",
+        "modelDescription": "Refreshes all data connections and Power Queries in a workbook (or a specific query if `queryName` is given).",
+        "tags": ["excel"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "workbook": { "type": "string" },
+            "queryName": { "type": "string" }
+          },
+          "required": ["workbook"]
+        }
+      },
+      {
+        "name": "excel_run_vba",
+        "displayName": "Run VBA Macro",
+        "modelDescription": "Executes a VBA macro by name in the given workbook, optionally with arguments. (Windows / COM only.) Disabled unless `axcelerator.allowVba` is enabled.",
+        "tags": ["excel", "windows", "advanced"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "workbook": { "type": "string" },
+            "macro": { "type": "string" },
+            "args": { "type": "array", "items": {} }
+          },
+          "required": ["workbook", "macro"]
+        }
+      },
+      {
+        "name": "excel_run_python",
+        "displayName": "Run xlwings Python Snippet",
+        "modelDescription": "Runs an arbitrary Python snippet against the live Excel session via xlwings. The snippet has `xw` (xlwings module), `app` (active App), and `wb` (target workbook, if `workbook` provided) in scope. Assign the result to a variable named `result` to return it. Disabled unless `axcelerator.allowPython` is enabled.",
+        "tags": ["excel", "advanced"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "workbook": { "type": "string" },
+            "code": { "type": "string", "description": "Python source. Set `result = ...` to return a value." }
+          },
+          "required": ["code"]
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "echo 'no linter configured'"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.95.0",
+    "typescript": "^5.4.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "local"
+  }
+}

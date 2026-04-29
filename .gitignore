@@ -1,0 +1,8 @@
+out/
+node_modules/
+*.vsix
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.webcure
