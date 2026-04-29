@@ -378,6 +378,7 @@ def m_create_chart(p: dict) -> dict:
     except Exception:
         if IS_WINDOWS and ctype in _CHART_TYPE_MAP_WIN:
             chart.api[1].ChartType = _CHART_TYPE_MAP_WIN[ctype]
+    title_warning = None
     if p.get("title"):
         try:
             if IS_WINDOWS:
@@ -385,13 +386,16 @@ def m_create_chart(p: dict) -> dict:
                 chart.api[1].ChartTitle.Text = p["title"]
             else:
                 chart.api.chart_title.set(p["title"])
-        except Exception:
-            pass
+        except Exception as e:
+            title_warning = f"Could not set chart title: {e}"
     if p.get("anchorCell"):
         anchor = sh.range(p["anchorCell"])
         chart.left = anchor.left
         chart.top = anchor.top
-    return {"name": chart.name}
+    out = {"name": chart.name}
+    if title_warning:
+        out["warning"] = title_warning
+    return out
 
 
 def m_create_pivot_table(p: dict) -> dict:
@@ -962,18 +966,23 @@ def m_refresh(p: dict) -> dict:
                     try:
                         if lo.QueryTable is not None and lo.Name == qn:
                             lo.QueryTable.Refresh(BackgroundQuery=False)
-                            return {"refreshed": qn}
+                            return {"refreshed": qn, "verified": True}
                     except Exception:
                         pass
             raise ValueError(f"Query/table not found: {qn!r}")
         book.api.RefreshAll()
-    else:
-        # On Mac, RefreshAll via AppleScript.
-        try:
-            book.api.refresh_all()
-        except Exception:
-            pass  # May not be available in older xlwings builds; best-effort.
-    return {"refreshed": qn or "all"}
+        return {"refreshed": "all", "verified": True}
+    # macOS: best-effort RefreshAll via AppleScript. Cannot confirm completion.
+    warning = None
+    try:
+        book.api.refresh_all()
+    except Exception as e:
+        warning = f"refresh_all not available or failed: {e}"
+    return {
+        "refreshed": qn or "all",
+        "verified": False,
+        "warning": warning or "macOS refresh is best-effort; completion is not confirmed. If using Power Query, ask the user to click Data > Refresh All.",
+    }
 
 
 def m_run_vba(p: dict) -> dict:

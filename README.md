@@ -22,9 +22,9 @@ The extension registers 19 `vscode.lm` tools that Copilot can call autonomously 
 | `excel_format_range`                                                   | Number format, bold/italic, font/background color, autofit                       |
 | `excel_create_table`                                                   | Convert a range to an Excel **Table / ListObject**                               |
 | `excel_create_chart`                                                   | Column / bar / line / pie / scatter / etc. anchored to a cell                    |
-| `excel_create_pivot_table`                                             | Build a PivotTable from a Table (Windows: full COM; Mac: summarised table)       |
-| `excel_add_power_query`                                                | Add or replace an M-expression query, optionally load to a sheet (Mac + Windows) |
-| `excel_refresh`                                                        | Refresh a single query or all connections                                        |
+| `excel_create_pivot_table`                                             | Windows: live PivotTable (COM). Mac: static summarised table at the destination cell (no PivotCache, does not refresh). |
+| `excel_add_power_query`                                                | Add/replace an M query. Windows: optionally load to a sheet/cell. Mac: query definition only — user must click Load in the PQ editor. |
+| `excel_refresh`                                                        | Refresh a single query or all connections. Mac is best-effort (returns `verified: false`). |
 | `excel_run_vba`                                                        | Run a named VBA macro (Windows only; gated by setting + workspace trust)         |
 | `excel_run_python`                                                     | Run an arbitrary xlwings snippet against the live session (gated by setting)     |
 

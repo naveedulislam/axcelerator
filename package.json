@@ -60,7 +60,7 @@
       {
         "name": "excel_check_environment",
         "displayName": "Check Excel Environment",
-        "modelDescription": "Reports whether Microsoft Excel and xlwings are available, the OS, Excel version, and which features are available (COM on Windows enables VBA macros, PivotTable automation, and direct Power Query API; on Mac Power Query is available via xlsx XML patching and PivotTables via AppleScript). Call this first when unsure.",
+        "modelDescription": "Reports whether Microsoft Excel and xlwings are available, the OS, Excel version, and per-capability flags. Windows (COM): live VBA, live PivotTables, direct Power Query API. macOS: Power Query via xlsx ZIP string-patching (definition-only; user must click Load), PivotTables via static summarised table (no PivotCache, no refresh), VBA unsupported. Inspect `powerQueryMode` and `pivotTableMode` in the result before planning. Call this first when unsure.",
         "userDescription": "Check Excel/xlwings environment",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "excelEnv",
