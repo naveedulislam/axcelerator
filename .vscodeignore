@@ -13,3 +13,5 @@ AUDIT_*.md
 *.xlsx
 *.vsix
 default.profraw
+.venv/**
+.webcure/**
