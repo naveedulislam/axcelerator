@@ -177,7 +177,7 @@ run_test(bridge, "add_sheet",    "Add TempSheet (to be deleted)",
 run_test(bridge, "delete_sheet", "Delete TempSheet",
          {"workbook": WB_NAME, "sheet": "TempSheet"})
 # Clean up any sheets leftover from a previous test run (ignore errors)
-for _s in ["Summary", "Dashboard", "PQ_Data"]:
+for _s in ["Summary", "Dashboard", "PQ_Data", "Pivot"]:
     bridge.call("delete_sheet", {"workbook": WB_NAME, "sheet": _s})
 run_test(bridge, "add_sheet", "Add Summary sheet",
          {"workbook": WB_NAME, "name": "Summary",   "after": "Data"})
@@ -185,6 +185,8 @@ run_test(bridge, "add_sheet", "Add Dashboard sheet",
          {"workbook": WB_NAME, "name": "Dashboard", "after": "Summary"})
 run_test(bridge, "add_sheet", "Add PQ_Data sheet",
          {"workbook": WB_NAME, "name": "PQ_Data",   "after": "Dashboard"})
+run_test(bridge, "add_sheet", "Add Pivot sheet",
+         {"workbook": WB_NAME, "name": "Pivot",     "after": "PQ_Data"})
 
 # ===========================================================================
 # PHASE 4 — Write data & formulas
@@ -368,11 +370,15 @@ dfmt("A1:L50", autofit=True)
 # ===========================================================================
 print("\n── Phase 9: Pivot table ──")
 
-run_test(bridge, "create_pivot_table", "Summarised pivot from Top10Table -> Summary!F5",
+# Place pivot on a dedicated 'Pivot' sheet so it can never collide with the
+# Top10Table or TrendTable that live on 'Summary'. Excel rejects PivotTable
+# placement when the destination sheet contains a structured table whose
+# footprint Excel deems to overlap with the pivot's growth area.
+run_test(bridge, "create_pivot_table", "Summarised pivot from Top10Table -> Pivot!A1",
          {"workbook": WB_NAME,
           "sourceTable": "Top10Table",
-          "destinationSheet": "Summary",
-          "destinationCell": "F5",
+          "destinationSheet": "Pivot",
+          "destinationCell": "A1",
           "name": "Top10Pivot",
           "rows": ["Country"],
           "values": [{"field": "Subscriptions per 100 people (2015)", "function": "sum"}]})
@@ -471,25 +477,49 @@ run_test(bridge, "add_power_query", "Inject Power Query 'Top10Query' (last opera
 
 # Workbook is now closed in Excel (noReopen=True). Use list_workbooks to show that.
 run_test(bridge, "list_workbooks", "List workbooks after PQ injection (workbook closed)", {})
-run_test(bridge, "refresh", "Refresh (no-op on Mac after close; graceful)",
-         {"workbook": WB_NAME}, expect_ok=False,
-         note="Expected: workbook was closed by noReopen. Graceful error is correct.")
+# Refresh behaviour after add_power_query(noReopen=True) differs by platform:
+#   - Mac:     workbook is closed in Excel; refresh has nothing to refresh -> error.
+#   - Windows: COM transparently re-binds / succeeds -> {"refreshed":"all","verified":true}.
+# Make the expectation platform-aware so both platforms PASS.
+_refresh_expect_ok = sys.platform.startswith("win")
+_refresh_note = (
+    "Windows: COM refresh succeeds after PQ injection."
+    if _refresh_expect_ok
+    else "Mac: workbook closed by noReopen; graceful error is correct."
+)
+run_test(bridge, "refresh", "Refresh after PQ injection (platform-aware)",
+         {"workbook": WB_NAME}, expect_ok=_refresh_expect_ok,
+         note=_refresh_note)
 
 # 3. Reopen workbook in Excel so the user can see it with charts + PQ.
-import subprocess as _sp, time as _time
-_sp.run(["open", WB_PATH], check=False)
-_time.sleep(3)  # let Excel finish loading
-# Dismiss any "Enable Queries" dialog via AppleScript.
-_sp.run(
-    ["osascript", "-e",
-     'tell application "Microsoft Excel"\n'
-     '  activate\n'
-     '  try\n'
-     '    click button "Enable" of front window\n'
-     '  end try\n'
-     'end tell'],
-    capture_output=True, timeout=5,
-)
+import subprocess as _sp, time as _time, sys as _sys, os as _os
+try:
+    if _sys.platform == "darwin":
+        _sp.run(["open", WB_PATH], check=False)
+        _time.sleep(3)  # let Excel finish loading
+        # Dismiss any "Enable Queries" dialog via AppleScript.
+        _sp.run(
+            ["osascript", "-e",
+             'tell application "Microsoft Excel"\n'
+             '  activate\n'
+             '  try\n'
+             '    click button "Enable" of front window\n'
+             '  end try\n'
+             'end tell'],
+            capture_output=True, timeout=5,
+        )
+    elif _sys.platform.startswith("win"):
+        # Use the shell association for .xlsm (launches Excel).
+        _os.startfile(WB_PATH)  # type: ignore[attr-defined]
+        _time.sleep(3)
+    else:
+        # Linux / other: try xdg-open if present.
+        try:
+            _sp.run(["xdg-open", WB_PATH], check=False)
+        except FileNotFoundError:
+            print(f"(skip) No opener available for platform {_sys.platform}; open manually: {WB_PATH}")
+except Exception as _e:
+    print(f"(warn) Could not auto-open workbook: {_e}")
 
 bridge.close()
 print("\nBridge closed.\n")
