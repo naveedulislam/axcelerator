@@ -71,6 +71,8 @@
         "name": "excel_list_workbooks",
         "displayName": "List Open Workbooks",
         "modelDescription": "Lists all workbooks currently open in Excel along with their full paths and active sheet.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelListWorkbooks",
         "tags": ["excel"],
         "inputSchema": { "type": "object", "properties": {} }
       },
@@ -78,6 +80,8 @@
         "name": "excel_open_workbook",
         "displayName": "Open or Create Workbook",
         "modelDescription": "Opens an existing workbook from disk, or creates a new empty workbook if `path` is omitted or the file does not exist (when `create=true`). Returns the workbook name.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelOpenWorkbook",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
@@ -92,6 +96,8 @@
         "name": "excel_save_workbook",
         "displayName": "Save Workbook",
         "modelDescription": "Saves a workbook. If `path` is provided, performs a Save As to that path.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelSaveWorkbook",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
@@ -106,6 +112,8 @@
         "name": "excel_close_workbook",
         "displayName": "Close Workbook",
         "modelDescription": "Closes a workbook. Set `save=true` to save first.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelCloseWorkbook",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
@@ -120,6 +128,8 @@
         "name": "excel_list_sheets",
         "displayName": "List Sheets",
         "modelDescription": "Lists worksheets in a workbook with their used range dimensions.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelListSheets",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
@@ -131,6 +141,8 @@
         "name": "excel_add_sheet",
         "displayName": "Add Worksheet",
         "modelDescription": "Adds a new worksheet to a workbook.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelAddSheet",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
@@ -146,6 +158,8 @@
         "name": "excel_delete_sheet",
         "displayName": "Delete Worksheet",
         "modelDescription": "Deletes a worksheet from a workbook.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelDeleteSheet",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
@@ -160,6 +174,8 @@
         "name": "excel_read_range",
         "displayName": "Read Range",
         "modelDescription": "Reads values from a range. Returns a 2D array. Use `expand='table'` to auto-detect the populated region starting at `range`.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelReadRange",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
@@ -177,6 +193,8 @@
         "name": "excel_write_range",
         "displayName": "Write Range",
         "modelDescription": "Writes values into a range. `values` is a 2D array (rows of columns). The range anchor cell is `range`; size is inferred from `values`.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelWriteRange",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
@@ -197,6 +215,8 @@
         "name": "excel_set_formula",
         "displayName": "Set Formula(s)",
         "modelDescription": "Sets one or more Excel formulas. If `formula` is a string, it is applied to the anchor cell. If `formulas` is provided (2D array), it fills a region. Use `array=true` for dynamic-array formulas.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelSetFormula",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
@@ -215,6 +235,8 @@
         "name": "excel_format_range",
         "displayName": "Format Range",
         "modelDescription": "Applies basic formatting to a range: number format, bold, italic, font color, background color, column width, autofit.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelFormatRange",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
@@ -237,6 +259,8 @@
         "name": "excel_create_table",
         "displayName": "Create Excel Table (ListObject)",
         "modelDescription": "Converts a range into an Excel Table (ListObject). Required for many dashboard/PivotTable scenarios.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelCreateTable",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
@@ -255,6 +279,8 @@
         "name": "excel_create_chart",
         "displayName": "Create Chart",
         "modelDescription": "Creates a chart on a sheet from a source range.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelCreateChart",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
@@ -279,6 +305,8 @@
         "name": "excel_create_pivot_table",
         "displayName": "Create PivotTable",
         "modelDescription": "Creates a PivotTable from an Excel Table or range. WINDOWS: builds a real PivotTable via the COM PivotCache (interactive, refreshable). macOS: writes a STATIC summarised table at the destination cell using Python aggregation \u2014 it is NOT a live PivotTable, has no PivotCache, and does not refresh when the source changes. Use check_environment.pivotTableMode to see which path will run.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelCreatePivotTable",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
@@ -310,6 +338,8 @@
         "name": "excel_add_power_query",
         "displayName": "Add Power Query (M)",
         "modelDescription": "Adds (or replaces) a Power Query connection defined by an M-expression. WINDOWS: full COM automation, including loading the query as a Query Table on a sheet (loadToSheet/loadToCell). macOS: the workbook is saved, closed, the .xlsx package is patched with the DataMashup blob, and reopened; the query becomes visible in the Power Query editor but is NOT auto-loaded to a sheet (loadToSheet and loadToCell are ignored on Mac \u2014 the user must click Load in the PQ editor). Requires a trusted workspace (M can fetch from web/file/SharePoint).",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelAddPowerQuery",
         "tags": ["excel", "power-query"],
         "inputSchema": {
           "type": "object",
@@ -329,6 +359,8 @@
         "name": "excel_refresh",
         "displayName": "Refresh Connections / Queries",
         "modelDescription": "Refreshes all data connections and Power Queries in a workbook (or a specific query if `queryName` is given). WINDOWS: per-connection refresh with error propagation. macOS: best-effort; queryName is ignored, the call asks Excel to refresh all and errors raised inside the Excel UI are not surfaced. Requires a trusted workspace.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelRefresh",
         "tags": ["excel"],
         "inputSchema": {
           "type": "object",
@@ -343,6 +375,8 @@
         "name": "excel_run_vba",
         "displayName": "Run VBA Macro",
         "modelDescription": "Executes a VBA macro by name in the given workbook, optionally with arguments. WINDOWS-ONLY (requires the Excel COM object model). On macOS the call returns an unsupported error \u2014 use excel_run_python instead. Disabled unless `axcelerator.allowVba` is enabled and the workspace is trusted.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelRunVba",
         "tags": ["excel", "windows", "advanced"],
         "inputSchema": {
           "type": "object",
@@ -358,6 +392,8 @@
         "name": "excel_run_python",
         "displayName": "Run xlwings Python Snippet",
         "modelDescription": "Runs an arbitrary Python snippet against the live Excel session via xlwings. The snippet has `xw` (xlwings module), `app` (active App), and `wb` (target workbook, if `workbook` provided) in scope. Assign the result to a variable named `result` to return it. Disabled unless `axcelerator.allowPython` is enabled.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "excelRunPython",
         "tags": ["excel", "advanced"],
         "inputSchema": {
           "type": "object",
